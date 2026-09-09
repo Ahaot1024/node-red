@@ -1,10 +1,2 @@
 # Node-RED 运行时生成的数据文件，不入版本控制
-nziot/data/.config.nodes.json
-nziot/data/.config.runtime.json
-nziot/data/.config.users.json
-nziot/data/flows.json
-nziot/data/flows_cred.json
-nziot/data/package.json
-nziot/data/lib/
-nziot/data/node_modules/
-nziot/data/.sessions.json
+data/
