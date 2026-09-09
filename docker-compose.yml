@@ -10,8 +10,11 @@ services:
     volumes:
       - node-red-data:/app/nziot/data   # 流程文件持久化
     environment:
-      - NODE_RED_TOKENS=your-token-here           # 改成后端实际签发的 nodeToken
-      - NODE_RED_CREDENTIAL_SECRET=change-me-once  # 固定密钥，定了就别改
+      # 测试环境不填 token = 不启用鉴权，任何人都能访问编辑器。
+      # 生产环境改成后端签发的 nodeToken 值（逗号分隔多个）。
+      - NODE_RED_TOKENS=
+      # 凭据加密密钥。第一次启动后不能改，否则已保存的凭据解不回来。
+      - NODE_RED_CREDENTIAL_SECRET=nziot-prod-secret
 
 volumes:
   node-red-data:

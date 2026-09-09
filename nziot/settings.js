@@ -19,8 +19,9 @@
 const os = require("os");
 const path = require("path");
 
-// Allowed node tokens, comma separated. Empty => editor/API unauthenticated
-// (NOT recommended outside local dev).
+// Allowed node tokens, comma separated.
+// 为空 => 不启用鉴权（测试环境可接受；生产环境建议配置 token）。
+// 示例: NODE_RED_TOKENS=nziot2026,另一个token
 const allowedTokens = (process.env.NODE_RED_TOKENS || "")
     .split(",")
     .map(t => t.trim())
