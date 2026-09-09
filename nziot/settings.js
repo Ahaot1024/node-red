@@ -6,26 +6,57 @@
  *   npm run build
  *   npx node-red --settings nziot/settings.js -u nziot/data
  *
- * Security model (v1, trusted internal editors):
- *  - The platform backend issues `nodeToken` values; Node-RED validates them
- *    via adminAuth.tokens against NODE_RED_TOKENS (comma separated allow-list
- *    in the environment).
- *  - The editor is normally embedded as an iframe with
- *      {url}?access_token={nodeToken}#flow/{tabId}
- *    Node-RED's editor client stores the token and sends
- *    `Authorization: Bearer` on AJAX plus an auth packet on the WebSocket.
+ * 鉴权机制：
+ *  - 后端在 /iot/node/tab/page 接口的 nodeToken 字段中返回平台 accessToken
+ *  - 前端 iframe 拼接 ?access_token={accessToken}#flow/{tabId}
+ *  - Node-RED 编辑器读取 access_token 并在后续请求中带 Authorization: Bearer
+ *  - Node-RED adminAuth.tokens 回调拿着 accessToken 去调平台接口校验身份
+ *  - 平台返回 errcode===0 则放行；errcode===401 则拒绝
  */
 
-const os = require("os");
 const path = require("path");
 
-// Allowed node tokens, comma separated.
-// 为空 => 不启用鉴权（测试环境可接受；生产环境建议配置 token）。
-// 示例: NODE_RED_TOKENS=nziot2026,另一个token
-const allowedTokens = (process.env.NODE_RED_TOKENS || "")
-    .split(",")
-    .map(t => t.trim())
-    .filter(Boolean);
+// 平台校验接口地址。
+// - 开发/测试环境直连后端: http://192.168.3.96:19092
+// - 生产环境 Node-RED 和平台在同一台 Nginx 后面，可用: http://127.0.0.1:端口 或内网地址
+// - 也可通过环境变量覆盖
+const PLATFORM_API_BASE = process.env.NZIOT_PLATFORM_API || "http://192.168.3.96:19092";
+
+// ---- token 校验结果短期缓存（避免每个请求都调一次后端） ----
+const tokenCache = new Map(); // token -> { result, expireAt }
+const CACHE_TTL = 60 * 1000;  // 缓存 60 秒
+
+async function verifyPlatformToken(token) {
+    // 1. 查缓存
+    const cached = tokenCache.get(token);
+    if (cached && cached.expireAt > Date.now()) {
+        return cached.result;
+    }
+
+    // 2. 调平台接口校验（用 accessToken 请求头，和平台前端 axios 拦截器一致）
+    try {
+        const response = await fetch(PLATFORM_API_BASE + "/iot/dashboard/overview", {
+            headers: { "accessToken": token }
+        });
+        const body = await response.json();
+
+        if (body && body.errcode === 0) {
+            // 校验通过
+            const result = { username: "platform-user", permissions: "*" };
+            tokenCache.set(token, { result, expireAt: Date.now() + CACHE_TTL });
+            return result;
+        }
+
+        // errcode !== 0（包括 401 "请先登录"）=> 拒绝
+        console.log("[nziot] token rejected:", body.errcode, body.message);
+        tokenCache.set(token, { result: null, expireAt: Date.now() + 10000 });
+        return null;
+    } catch (err) {
+        console.error("[nziot] token verify error:", err.message);
+        // 网络错误不缓存，下次重试
+        return null;
+    }
+}
 
 module.exports = {
     // ------------------------------------------------------------------
@@ -34,27 +65,16 @@ module.exports = {
     flowFile: "flows.json",
     flowFilePretty: true,
     userDir: path.join(__dirname, "data"),
-    // Point at each platform plugin package dir (each has its own package.json
-    // with a `node-red` block). Scaner treats a dir containing package.json with
-    // node-red keywords as a node-red module.
     nodesDir: [path.join(__dirname, "nziot-flow-runner")],
 
     // ------------------------------------------------------------------
-    // Security
+    // Security（调平台接口校验 accessToken）
     // ------------------------------------------------------------------
-    // Editor/Admin API authentication. Custom token callback validated
-    // against the platform-issued node tokens.
-    adminAuth: allowedTokens.length > 0 ? {
+    adminAuth: {
         type: "credentials",
         users: [],
-        tokens: async function (token) {
-            if (allowedTokens.includes(token)) {
-                // Trusted internal editor: full editor permissions.
-                return { username: "platform", permissions: "*" };
-            }
-            return null;
-        }
-    } : undefined,
+        tokens: verifyPlatformToken
+    },
 
     // Protect runtime HTTP-In endpoints behind a separate prefix path.
     httpNodeRoot: "/node-api",
@@ -63,33 +83,19 @@ module.exports = {
     // Server
     // ------------------------------------------------------------------
     uiPort: process.env.PORT || 1880,
-    // Keep the admin API at the root; reverse proxy (vite dev / nginx prod)
-    // maps /nodered/* onto this instance preserving the prefix handling.
-    // httpAdminRoot: "/red-admin",
 
     // ------------------------------------------------------------------
     // Editor trimming
     // ------------------------------------------------------------------
     editorTheme: {
-        // Activate the NZIoT platform theme plugin (provides editor scripts/css
-        // and merges its menu overrides)
         theme: "nziot-flow-runner",
-        // Hide the user menu (login/logout) - platform owns the session
         userMenu: false,
         tours: false,
-        projects: {
-            enabled: false
-        },
-        palette: {
-            // Palette manager disabled: nodes are provisioned with the image
-            editable: false
-        },
+        projects: { enabled: false },
+        palette: { editable: false },
         menu: {
-            // Flow/tab lifecycle is owned by the platform management page
             "menu-item-workspace-add": false,
             "menu-item-workspace-delete": false,
-            // Clipboard library features trimmed (import/export stays for now;
-            // the theme plugin also disables library menu items)
             "menu-item-import-library": false,
             "menu-item-export-library": false
         }
@@ -105,9 +111,7 @@ module.exports = {
             allowUpload: false,
             allowUpdate: false
         },
-        modules: {
-            allowInstall: false
-        }
+        modules: { allowInstall: false }
     },
 
     // Stable credential secret - do NOT change once flows hold credentials.
@@ -121,9 +125,7 @@ module.exports = {
         }
     },
 
-    // Diagnostics / telemetry off
     diagnostics: { enabled: false, ui: false },
     telemetryEnabled: false,
-
     runtimeState: { enabled: false, ui: false }
 };
