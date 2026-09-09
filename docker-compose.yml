@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  node-red:
+    build: .
+    container_name: nziot-node-red
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1880:1880"      # 只绑本机，由 Nginx 反代对外
+    volumes:
+      - node-red-data:/app/nziot/data   # 流程文件持久化
+    environment:
+      - NODE_RED_TOKENS=your-token-here           # 改成后端实际签发的 nodeToken
+      - NODE_RED_CREDENTIAL_SECRET=change-me-once  # 固定密钥，定了就别改
+
+volumes:
+  node-red-data:
+    driver: local

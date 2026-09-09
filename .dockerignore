@@ -1,0 +1,12 @@
+node_modules
+nziot/data
+test
+.git
+.github
+*.md
+!nziot/README.md
+CITATION.cff
+CODE_OF_CONDUCT.md
+SECURITY.md
+jsdoc.json
+nodemon.json
