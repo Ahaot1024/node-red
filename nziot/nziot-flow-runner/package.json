@@ -1,0 +1,20 @@
+{
+    "name": "nziot-flow-runner",
+    "version": "1.0.0",
+    "description": "NZIoT platform editor customisation: single-flow pinning, menu trimming, parent-page bridge",
+    "license": "Apache-2.0",
+    "keywords": [
+        "node-red",
+        "plugin",
+        "theme"
+    ],
+    "node-red": {
+        "version": ">=3.0.0",
+        "plugins": {
+            "nziot-flow-runner": "plugin.js"
+        }
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

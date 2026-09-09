@@ -1,0 +1,10 @@
+/**
+ * NZIoT platform editor theme overrides.
+ * Kept minimal: chrome hiding is done in clientside.js (needs JS conditionality).
+ * This file exists so the plugin has a css asset and future branding can live here.
+ */
+
+/* Hide the default Node-RED logo text (platform shows its own chrome in the parent page) */
+#red-ui-header-logo .red-ui-header-logo {
+    font-size: 0;
+}
