@@ -2,8 +2,8 @@
  * NZIoT flow runner - editor side script.
  *
  * Pin the editor to the flow given by URL hash `#flow/<id>`:
- * hide every other workspace tab, sidebar explorer items, disable
- * search/add/delete actions. Expose postMessage bridge to parent.
+ * hide every other workspace tab, sidebar explorer items, config-node
+ * categories, and disable search/add/delete actions.
  */
 (function () {
     if (typeof RED === "undefined") return;
@@ -29,7 +29,7 @@
     }
 
     // ---------------------------------------------------------------
-    // Flow pinning — workspace level
+    // Workspace pinning
     // ---------------------------------------------------------------
     function hideOtherWorkspaces() {
         if (!TARGET_FLOW_ID) return;
@@ -45,82 +45,84 @@
     }
 
     // ---------------------------------------------------------------
-    // Flow pinning — explorer sidebar
+    // Explorer sidebar: hide every flow except TARGET, plus subflow /
+    // global-config groups. Uses RED.nodes.eachWorkspace to get IDs,
+    // then hides the matching treeList containers.
     // ---------------------------------------------------------------
     function hideExplorerItems() {
         if (!TARGET_FLOW_ID) return;
 
-        // 方法 1：通过 treeList jQuery data 精确匹配 ID
-        $(".red-ui-info-outline .red-ui-treeList-container").each(function () {
+        var otherIds = {};
+        RED.nodes.eachWorkspace(function (ws) {
+            if (ws.id !== TARGET_FLOW_ID) otherIds[ws.id] = true;
+        });
+        RED.nodes.eachSubflow(function (sf) {
+            otherIds[sf.id] = true;
+        });
+        otherIds["__subflow__"] = true;
+        otherIds["__global__"] = true;
+
+        $(".red-ui-info-outline .red-ui-editableList-item-content").each(function () {
             var $el = $(this);
-            var itemData = $el.data("treelistItem");
-            if (!itemData) return;
-
-            // 顶层分组（depth 0）：流程列表、子流程、全局配置
-            // id 为 "__subflow__" 或 "__global__" 的分组直接隐藏
-            if (itemData.id === "__subflow__" || itemData.id === "__global__") {
-                $el.hide();
-                return;
-            }
-
-            // 流程条目：只显示目标流程
-            if (itemData.id && itemData.id !== TARGET_FLOW_ID) {
-                // 检查是不是一个 flow tab（有 icon 属性表示是 outliner 添加的 flow 条目）
-                if (itemData.icon || (itemData.element && itemData.element.hasClass && itemData.element.hasClass("red-ui-info-outline-item-flow"))) {
-                    $el.hide();
-                }
+            var item = $el.data("data");
+            if (!item) return;
+            if (otherIds[item.id]) {
+                $el.closest("li").hide();
             }
         });
 
-        // 方法 2（兜底）：通过 DOM 结构隐藏
-        // 如果方法 1 的 jQuery data 不可用，遍历 outline 里 flow 标签文本
-        var root = document.querySelector(".red-ui-info-outline .red-ui-treeList");
-        if (!root) return;
-        var topContainers = root.querySelectorAll(":scope > .red-ui-treeList-container");
-        topContainers.forEach(function (topItem, idx) {
-            if (idx === 0) {
-                // 第一个 = 流程列表分组
-                var childrenWrap = topItem.querySelector(".red-ui-treeList-children");
-                if (!childrenWrap) return;
-                var flowItems = childrenWrap.querySelectorAll(":scope > .red-ui-treeList-container");
-                flowItems.forEach(function (flowItem) {
-                    var isTarget = false;
-                    try {
-                        var data = $(flowItem).data("treelistItem");
-                        if (data && data.id === TARGET_FLOW_ID) isTarget = true;
-                    } catch (e) {}
-                    flowItem.style.display = isTarget ? "" : "none";
-                });
-            } else {
-                // 子流程 / 全局配置 → 隐藏
-                topItem.style.display = "none";
+        // 子流程 / 全局配置 分组（depth 0，id 固定）
+        $(".red-ui-info-outline .red-ui-treeList-label").each(function () {
+            var $label = $(this);
+            var $li = $label.closest("li");
+            var item = $label.parent().data("data") || $li.data("data");
+            if (item && (item.id === "__subflow__" || item.id === "__global__")) {
+                $li.hide();
             }
         });
     }
 
     // ---------------------------------------------------------------
-    // Inject CSS to hide fixed UI elements
+    // Config-node sidebar: hide categories that belong to other flows
+    // ---------------------------------------------------------------
+    function hideConfigSidebar() {
+        if (!TARGET_FLOW_ID) return;
+        var targetCat = TARGET_FLOW_ID.replace(/\./g, "-");
+        $(".red-ui-sidebar-config-category").each(function () {
+            var id = (this.id || "").replace("red-ui-sidebar-config-category-", "");
+            if (id && id !== targetCat && id !== "global") {
+                $(this).hide();
+            }
+        });
+        // 全局配置节点分类也隐藏（平台不暴露）
+        $("#red-ui-sidebar-config-category-global").hide();
+    }
+
+    // ---------------------------------------------------------------
+    // Inject CSS
     // ---------------------------------------------------------------
     function hideChrome() {
         if (document.getElementById("nziot-pin-css")) return;
         var css = document.createElement("style");
         css.id = "nziot-pin-css";
         css.textContent = [
-            // Workspace tab bar
+            // Workspace tab strip + add button
             ".red-ui-tabs-add{display:none !important}",
             "#red-ui-workspace-tabs{display:none !important}",
             "#red-ui-workspace-tabs-shade{display:none !important}",
+            // Flow dropdown (caret-down next to deploy)
+            ".red-ui-tabs-menu{display:none !important}",
+            "#red-ui-workspace .red-ui-tab-button.red-ui-tabs-menu{display:none !important}",
             // Explorer search box
             ".red-ui-info-outline > .red-ui-info-toolbar{display:none !important}",
             ".red-ui-info-outline > .red-ui-palette-search{display:none !important}",
-            // Footer search button (搜索流程)
+            // Footer search
             "#red-ui-view-searchtools-search{display:none !important}",
-            // Search toolbar popover
             ".red-ui-view-searchtools-counter{display:none !important}",
+            // Search dialog
+            "#red-ui-search{display:none !important}",
             // Hamburger menu
             "#red-ui-header-button-sidemenu{display:none !important}",
-            // Search dialog when opened
-            "#red-ui-search{display:none !important}",
             ""
         ].join("\n");
         document.head.appendChild(css);
@@ -130,6 +132,7 @@
         if (!pinning || !TARGET_FLOW_ID) return;
         hideOtherWorkspaces();
         hideExplorerItems();
+        hideConfigSidebar();
         var active = RED.workspaces.active();
         if (active && active !== TARGET_FLOW_ID) {
             var ws = RED.nodes.workspace(active);
@@ -141,7 +144,7 @@
     }
 
     // ---------------------------------------------------------------
-    // Block dangerous actions (remove first, then add noop)
+    // Block dangerous actions
     // ---------------------------------------------------------------
     function blockDangerousActions() {
         if (!pinning) return;
@@ -150,6 +153,10 @@
             "core:remove-flow",
             "core:search",
             "core:search-flows",
+            "core:list-flows",
+            "core:list-subflows",
+            "core:list-hidden-flows",
+            "core:list-modified-nodes",
             "core:show-config-tab",
             "core:create-subflow",
             "core:convert-to-subflow",
@@ -157,12 +164,14 @@
             "core:show-export-dialog",
             "core:new-project",
             "core:open-project",
-            "core:show-action-list"
+            "core:show-action-list",
+            "core:hide-flow",
+            "core:hide-other-flows",
+            "core:hide-all-flows",
+            "core:show-all-flows"
         ];
         blocked.forEach(function (action) {
-            try {
-                RED.actions.remove(action);
-            } catch (e) {}
+            try { RED.actions.remove(action); } catch (e) {}
             try {
                 RED.actions.add(action, function () {
                     console.log("[nziot] blocked action: " + action);
@@ -170,15 +179,13 @@
             } catch (e) {}
         });
 
-        // Also override Ctrl+F at the DOM level to prevent browser/NR search
         document.addEventListener("keydown", function (evt) {
             if (!pinning) return;
-            // Block Ctrl+F (search)
-            if ((evt.ctrlKey || evt.metaKey) && evt.key === "f") {
+            if ((evt.ctrlKey || evt.metaKey) && (evt.key === "f" || evt.key === "F")) {
                 evt.preventDefault();
                 evt.stopPropagation();
             }
-        }, true); // useCapture = true to intercept before Node-RED
+        }, true);
     }
 
     // ---------------------------------------------------------------
@@ -246,8 +253,9 @@
             blockDangerousActions();
             setTimeout(function () {
                 hideExplorerItems();
-                startExplorerObserver();
-            }, 300);
+                hideConfigSidebar();
+                startObservers();
+            }, 400);
             toParent({
                 type: "nziot:ready",
                 flowId: TARGET_FLOW_ID,
@@ -256,29 +264,32 @@
             });
         });
 
-        RED.events.on("flows:add", function () { setTimeout(hideExplorerItems, 100); });
-        RED.events.on("flows:remove", function () { setTimeout(hideExplorerItems, 100); });
-        RED.events.on("flows:reorder", function () { setTimeout(hideExplorerItems, 100); });
-        RED.events.on("sidebar:open", function () { setTimeout(hideExplorerItems, 200); });
+        RED.events.on("flows:add", function () { setTimeout(enforcePin, 100); });
+        RED.events.on("flows:remove", function () { setTimeout(enforcePin, 100); });
+        RED.events.on("flows:reorder", function () { setTimeout(enforcePin, 100); });
+        RED.events.on("sidebar:open", function () { setTimeout(enforcePin, 200); });
         RED.events.on("workspace:change", function () { enforcePin(); });
     }
 
-    function startExplorerObserver() {
+    function startObservers() {
         if (!pinning) return;
-        var root = document.querySelector(".red-ui-info-outline .red-ui-treeList");
-        if (!root) {
-            setTimeout(startExplorerObserver, 1000);
-            return;
+        function watch(sel, fn) {
+            var el = document.querySelector(sel);
+            if (!el) {
+                setTimeout(function () { watch(sel, fn); }, 800);
+                return;
+            }
+            var t;
+            var obs = new MutationObserver(function () {
+                clearTimeout(t);
+                t = setTimeout(fn, 50);
+            });
+            obs.observe(el, { childList: true, subtree: true });
         }
-        var debounceTimer;
-        var observer = new MutationObserver(function () {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(hideExplorerItems, 50);
-        });
-        observer.observe(root, { childList: true, subtree: true });
+        watch(".red-ui-info-outline .red-ui-treeList", hideExplorerItems);
+        watch("#red-ui-sidebar-node-config", hideConfigSidebar);
     }
 
-    // Bootstrapping
     TARGET_FLOW_ID = extractTargetFlow();
     pinning = !!TARGET_FLOW_ID;
     wireBridge();

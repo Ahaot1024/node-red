@@ -17,11 +17,18 @@ module.exports = function (RED) {
             "files/theme.css"
         ],
         menu: {
-            // 平台只保留「编辑当前流程」能力：新增/删除/导入导出全部交给平台管理页
             "menu-item-workspace-add": false,
             "menu-item-workspace-delete": false,
+            "menu-item-workspace-edit": false,
+            "menu-item-workspace": false,
+            "menu-item-subflow": false,
+            "menu-item-subflow-create": false,
+            "menu-item-subflow-convert": false,
             "menu-item-import-library": false,
-            "menu-item-export-library": false
+            "menu-item-export-library": false,
+            "menu-item-search": false,
+            "menu-item-config-nodes": false,
+            "menu-item-action-list": false
         },
         onadd: function () {
             console.log("[nziot-flow-runner] registered (node-red-theme)");

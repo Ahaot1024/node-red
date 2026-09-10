@@ -8,32 +8,33 @@
     display: none !important;
 }
 
-/* ---- Flow pinning: hide all flow-browsing affordances ---- */
-
-/* Workspace tab bar */
+/* Workspace tab strip + add-flow button (we pin to a single flow) */
 #red-ui-workspace-tabs,
 #red-ui-workspace-tabs-shade,
 .red-ui-tabs-add {
     display: none !important;
 }
 
-/* EXPLORER sidebar: hide search box ("查找流程") */
+/* Flow dropdown (caret-down next to Deploy) — useless with one flow */
+#red-ui-workspace .red-ui-tabs-menu,
+#red-ui-workspace .red-ui-tab-button.red-ui-tabs-menu {
+    display: none !important;
+}
+
+/* EXPLORER search box ("查找流程") */
 .red-ui-info-outline > .red-ui-info-toolbar,
 .red-ui-info-outline > .red-ui-palette-search {
     display: none !important;
 }
 
-/* Bottom footer search button (搜索流程 Ctrl-F) */
-#red-ui-view-searchtools-search {
+/* Footer search button (搜索流程 Ctrl-F) */
+#red-ui-view-searchtools-search,
+.red-ui-view-searchtools-counter,
+#red-ui-search {
     display: none !important;
 }
 
-/* Bottom footer navigate buttons (← → next to search) */
-.red-ui-view-searchtools-counter {
-    display: none !important;
-}
-
-/* Hide the hamburger menu entirely */
+/* Hamburger menu (all remaining items are either blocked or unused) */
 #red-ui-header-button-sidemenu {
     display: none !important;
 }
