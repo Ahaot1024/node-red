@@ -27,7 +27,7 @@ RUN mkdir -p nziot/data/node_modules && \
     cp -r nziot/nziot-flow-runner nziot/data/node_modules/
 
 # 8. 入口脚本：每次启动时同步最新插件（防止旧卷覆盖新构建的文件）
-RUN chmod +x nziot/entrypoint.sh
+RUN sed -i 's/\r$//' nziot/entrypoint.sh && chmod +x nziot/entrypoint.sh
 ENTRYPOINT ["/app/nziot/entrypoint.sh"]
 
 # 9. 流程数据目录（持久化挂载点）

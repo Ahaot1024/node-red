@@ -10,31 +10,30 @@
 
 /* ---- Flow pinning: hide all flow-browsing affordances ---- */
 
-/* Workspace tab bar (handled by JS too, belt-and-suspenders) */
+/* Workspace tab bar */
 #red-ui-workspace-tabs,
 #red-ui-workspace-tabs-shade,
 .red-ui-tabs-add {
     display: none !important;
 }
 
-/* EXPLORER sidebar: hide search box */
-.red-ui-info-outline > .red-ui-info-toolbar {
+/* EXPLORER sidebar: hide search box ("查找流程") */
+.red-ui-info-outline > .red-ui-info-toolbar,
+.red-ui-info-outline > .red-ui-palette-search {
     display: none !important;
 }
 
-/* Left sidebar bottom search/filter button row */
-#red-ui-sidebar-search-btn,
-#red-ui-sidebar-config-btn {
+/* Bottom footer search button (搜索流程 Ctrl-F) */
+#red-ui-view-searchtools-search {
     display: none !important;
 }
 
-/* Main search dialog trigger (Ctrl+F / magnifying glass in header) */
-#red-ui-header .red-ui-header-toolbar .red-ui-header-button-search {
+/* Bottom footer navigate buttons (← → next to search) */
+.red-ui-view-searchtools-counter {
     display: none !important;
 }
 
-/* Hide the hamburger menu entirely — all needed actions are in
-   the deploy button and the platform toolbar */
+/* Hide the hamburger menu entirely */
 #red-ui-header-button-sidemenu {
     display: none !important;
 }

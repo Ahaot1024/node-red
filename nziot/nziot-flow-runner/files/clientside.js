@@ -1,19 +1,12 @@
 /**
  * NZIoT flow runner - editor side script.
  *
- * Loaded as a theme script. Behaviour:
- *  1. Pin the editor to the flow given by the URL hash `#flow/<id>`:
- *     hide every other workspace tab and all non-target flows in the
- *     sidebar explorer, disable search/subflows/global-config sections.
- *  2. Expose a minimal postMessage bridge to the parent page.
- *
- * NOTE: this is UI-level only. It does not prevent a determined user from
- * reaching other flows through devtools.
+ * Pin the editor to the flow given by URL hash `#flow/<id>`:
+ * hide every other workspace tab, sidebar explorer items, disable
+ * search/add/delete actions. Expose postMessage bridge to parent.
  */
 (function () {
-    if (typeof RED === "undefined") {
-        return;
-    }
+    if (typeof RED === "undefined") return;
 
     var TARGET_FLOW_ID = null;
     var pinning = false;
@@ -32,11 +25,7 @@
     }
 
     function toParent(payload) {
-        try {
-            window.parent.postMessage(payload, parentOrigin);
-        } catch (e) {
-            /* ignore */
-        }
+        try { window.parent.postMessage(payload, parentOrigin); } catch (e) {}
     }
 
     // ---------------------------------------------------------------
@@ -44,99 +33,94 @@
     // ---------------------------------------------------------------
     function hideOtherWorkspaces() {
         if (!TARGET_FLOW_ID) return;
-        var hidden = 0;
         RED.nodes.eachWorkspace(function (ws) {
             if (ws.id !== TARGET_FLOW_ID && !RED.workspaces.isHidden(ws.id)) {
                 RED.workspaces.hide(ws.id);
-                hidden++;
             }
         });
-        if (hidden > 0) {
-            console.log("[nziot] hidden " + hidden + " non-target workspace tab(s)");
-        }
         var active = RED.workspaces.active();
-        if (active !== TARGET_FLOW_ID) {
-            if (RED.nodes.workspace(TARGET_FLOW_ID)) {
-                RED.workspaces.show(TARGET_FLOW_ID, true);
-            }
+        if (active !== TARGET_FLOW_ID && RED.nodes.workspace(TARGET_FLOW_ID)) {
+            RED.workspaces.show(TARGET_FLOW_ID, true);
         }
     }
 
     // ---------------------------------------------------------------
-    // Flow pinning — explorer sidebar (outline)
+    // Flow pinning — explorer sidebar
     // ---------------------------------------------------------------
-
-    /**
-     * 扫描 EXPLORER 侧边栏 treeList DOM，隐藏非目标流程条目。
-     * treeList 结构：
-     *   <div class="red-ui-treeList-container" (each top-level item)>
-     *     <div class="red-ui-treeList-label">
-     *       <div class="red-ui-info-outline-item red-ui-info-outline-item-flow">
-     *         <div class="red-ui-info-outline-item-label">流程名</div>
-     *       </div>
-     *     </div>
-     *     <div class="red-ui-treeList-children"> (子节点) </div>
-     *   </div>
-     *
-     * 顶层有 3 个分组：流程列表、子流程(__subflow__)、全局配置(__global__)
-     * 流程列表下面每个 flow 也是 .red-ui-treeList-container。
-     */
     function hideExplorerItems() {
         if (!TARGET_FLOW_ID) return;
-        // 查找 outline 根容器
+
+        // 方法 1：通过 treeList jQuery data 精确匹配 ID
+        $(".red-ui-info-outline .red-ui-treeList-container").each(function () {
+            var $el = $(this);
+            var itemData = $el.data("treelistItem");
+            if (!itemData) return;
+
+            // 顶层分组（depth 0）：流程列表、子流程、全局配置
+            // id 为 "__subflow__" 或 "__global__" 的分组直接隐藏
+            if (itemData.id === "__subflow__" || itemData.id === "__global__") {
+                $el.hide();
+                return;
+            }
+
+            // 流程条目：只显示目标流程
+            if (itemData.id && itemData.id !== TARGET_FLOW_ID) {
+                // 检查是不是一个 flow tab（有 icon 属性表示是 outliner 添加的 flow 条目）
+                if (itemData.icon || (itemData.element && itemData.element.hasClass && itemData.element.hasClass("red-ui-info-outline-item-flow"))) {
+                    $el.hide();
+                }
+            }
+        });
+
+        // 方法 2（兜底）：通过 DOM 结构隐藏
+        // 如果方法 1 的 jQuery data 不可用，遍历 outline 里 flow 标签文本
         var root = document.querySelector(".red-ui-info-outline .red-ui-treeList");
         if (!root) return;
-
-        // 顶层 3 个分组 container（流程、子流程、全局配置）
         var topContainers = root.querySelectorAll(":scope > .red-ui-treeList-container");
         topContainers.forEach(function (topItem, idx) {
             if (idx === 0) {
-                // 第一个分组 = 流程列表 → 隐藏其中非目标 flow
+                // 第一个 = 流程列表分组
                 var childrenWrap = topItem.querySelector(".red-ui-treeList-children");
                 if (!childrenWrap) return;
-                var flowItems = childrenWrap.querySelectorAll(
-                    ":scope > .red-ui-treeList-container"
-                );
+                var flowItems = childrenWrap.querySelectorAll(":scope > .red-ui-treeList-container");
                 flowItems.forEach(function (flowItem) {
-                    // 判断这个条目是否是目标流程
-                    // 方法：用 RED.sidebar.info.outliner 的 objects 映射不可访问，
-                    // 所以查看 item 的 label 文字 + 用 treeList select 事件里的 id
-                    // 更可靠的方法：检查 treeList 的 data-id 属性
                     var isTarget = false;
-
-                    // treeList widget 会在 container 上存 jQuery data
                     try {
-                        var $item = $(flowItem);
-                        var itemData = $item.data("treelistItem");
-                        if (itemData && itemData.id === TARGET_FLOW_ID) {
-                            isTarget = true;
-                        }
-                    } catch (e) { /* fallback below */ }
-
+                        var data = $(flowItem).data("treelistItem");
+                        if (data && data.id === TARGET_FLOW_ID) isTarget = true;
+                    } catch (e) {}
                     flowItem.style.display = isTarget ? "" : "none";
                 });
             } else {
-                // 子流程 和 全局配置分组 → 全部隐藏
+                // 子流程 / 全局配置 → 隐藏
                 topItem.style.display = "none";
             }
         });
     }
 
-    /**
-     * 注入 CSS 隐藏固定 UI 元素
-     */
+    // ---------------------------------------------------------------
+    // Inject CSS to hide fixed UI elements
+    // ---------------------------------------------------------------
     function hideChrome() {
         if (document.getElementById("nziot-pin-css")) return;
         var css = document.createElement("style");
         css.id = "nziot-pin-css";
         css.textContent = [
-            // 隐藏工作区 tab 栏和添加按钮
+            // Workspace tab bar
             ".red-ui-tabs-add{display:none !important}",
             "#red-ui-workspace-tabs{display:none !important}",
             "#red-ui-workspace-tabs-shade{display:none !important}",
-            // 隐藏 EXPLORER 搜索框（查找流程）
+            // Explorer search box
             ".red-ui-info-outline > .red-ui-info-toolbar{display:none !important}",
-            // 隐藏右键上下文菜单中的 flow 操作项（删除/复制/启用等其他 flow 的菜单）
+            ".red-ui-info-outline > .red-ui-palette-search{display:none !important}",
+            // Footer search button (搜索流程)
+            "#red-ui-view-searchtools-search{display:none !important}",
+            // Search toolbar popover
+            ".red-ui-view-searchtools-counter{display:none !important}",
+            // Hamburger menu
+            "#red-ui-header-button-sidemenu{display:none !important}",
+            // Search dialog when opened
+            "#red-ui-search{display:none !important}",
             ""
         ].join("\n");
         document.head.appendChild(css);
@@ -157,7 +141,7 @@
     }
 
     // ---------------------------------------------------------------
-    // Block actions that could create/delete flows or expose others
+    // Block dangerous actions (remove first, then add noop)
     // ---------------------------------------------------------------
     function blockDangerousActions() {
         if (!pinning) return;
@@ -165,24 +149,36 @@
             "core:add-flow",
             "core:remove-flow",
             "core:search",
+            "core:search-flows",
             "core:show-config-tab",
             "core:create-subflow",
             "core:convert-to-subflow",
             "core:show-import-dialog",
             "core:show-export-dialog",
             "core:new-project",
-            "core:open-project"
+            "core:open-project",
+            "core:show-action-list"
         ];
         blocked.forEach(function (action) {
             try {
-                // 用空函数覆盖原有 action handler
+                RED.actions.remove(action);
+            } catch (e) {}
+            try {
                 RED.actions.add(action, function () {
                     console.log("[nziot] blocked action: " + action);
                 });
-            } catch (e) {
-                // 部分 action 可能不存在，忽略
-            }
+            } catch (e) {}
         });
+
+        // Also override Ctrl+F at the DOM level to prevent browser/NR search
+        document.addEventListener("keydown", function (evt) {
+            if (!pinning) return;
+            // Block Ctrl+F (search)
+            if ((evt.ctrlKey || evt.metaKey) && evt.key === "f") {
+                evt.preventDefault();
+                evt.stopPropagation();
+            }
+        }, true); // useCapture = true to intercept before Node-RED
     }
 
     // ---------------------------------------------------------------
@@ -248,11 +244,10 @@
             hideChrome();
             hideOtherWorkspaces();
             blockDangerousActions();
-            // 延迟执行，等 treeList DOM 渲染完成
             setTimeout(function () {
                 hideExplorerItems();
                 startExplorerObserver();
-            }, 500);
+            }, 300);
             toParent({
                 type: "nziot:ready",
                 flowId: TARGET_FLOW_ID,
@@ -261,22 +256,17 @@
             });
         });
 
-        // 监听各种可能导致 explorer 列表变化的事件
         RED.events.on("flows:add", function () { setTimeout(hideExplorerItems, 100); });
         RED.events.on("flows:remove", function () { setTimeout(hideExplorerItems, 100); });
         RED.events.on("flows:reorder", function () { setTimeout(hideExplorerItems, 100); });
         RED.events.on("sidebar:open", function () { setTimeout(hideExplorerItems, 200); });
-        RED.events.on("workspace:change", function () {
-            enforcePin();
-        });
+        RED.events.on("workspace:change", function () { enforcePin(); });
     }
 
-    /** MutationObserver 监听 explorer 列表 DOM 变化，及时隐藏新增的条目 */
     function startExplorerObserver() {
         if (!pinning) return;
         var root = document.querySelector(".red-ui-info-outline .red-ui-treeList");
         if (!root) {
-            // 可能还没渲染，再等一下
             setTimeout(startExplorerObserver, 1000);
             return;
         }
