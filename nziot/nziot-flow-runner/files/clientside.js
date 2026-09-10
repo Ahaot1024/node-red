@@ -230,6 +230,10 @@
         });
 
         $(document).ajaxComplete(function (evt, xhr, settings) {
+            if (xhr.status === 401) {
+                toParent({ type: "nziot:auth-expired" });
+                return;
+            }
             if (settings && settings.type === "POST" && /\/flows(\?|$)/.test(settings.url || "")) {
                 if (xhr.status >= 400) {
                     var errDetail = "";
@@ -293,4 +297,10 @@
     TARGET_FLOW_ID = extractTargetFlow();
     pinning = !!TARGET_FLOW_ID;
     wireBridge();
+
+    // 登录页出现时（token 失效）立刻通知父页面，不等 flows:loaded
+    if (document.getElementById("node-dialog-login") ||
+        document.getElementById("node-dialog-login-fields")) {
+        toParent({ type: "nziot:auth-expired" });
+    }
 })();
