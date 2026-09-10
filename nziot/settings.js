@@ -6,12 +6,18 @@
  *   npm run build
  *   npx node-red --settings nziot/settings.js -u nziot/data
  *
- * 鉴权机制：
- *  - 后端在 /iot/node/tab/page 接口的 nodeToken 字段中返回平台 accessToken
- *  - 前端 iframe 拼接 ?access_token={accessToken}#flow/{tabId}
- *  - Node-RED 编辑器读取 access_token 并在后续请求中带 Authorization: Bearer
- *  - Node-RED adminAuth.tokens 回调拿着 accessToken 去调平台接口校验身份
- *  - 平台返回 errcode===0 则放行；errcode===401 则拒绝
+ * 鉴权机制（两条路径）：
+ *
+ *  A) 浏览器用户（前端 iframe → Node-RED）：
+ *     - 前端 iframe 拼接 ?access_token={平台accessToken}#flow/{tabId}
+ *     - Node-RED 编辑器读取 access_token 并在后续请求中带 Authorization: Bearer
+ *     - adminAuth.tokens 回调拿着 accessToken 去调平台接口校验身份
+ *     - 平台返回 errcode===0 则放行；errcode===401 则拒绝
+ *
+ *  B) 后端服务间调用（Java → Node-RED Admin API）：
+ *     - Java 后端调 Node-RED 时请求头带 Authorization: Bearer {NZIOT_SERVICE_TOKEN}
+ *     - adminAuth.tokens 回调发现 token === SERVICE_TOKEN 直接放行
+ *     - SERVICE_TOKEN 通过环境变量 NZIOT_SERVICE_TOKEN 配置
  */
 
 const path = require("path");
@@ -22,11 +28,21 @@ const path = require("path");
 // - 也可通过环境变量覆盖
 const PLATFORM_API_BASE = process.env.NZIOT_PLATFORM_API || "http://192.168.3.96:19092";
 
+// ---- 后端服务间调用的静态密钥 ----
+// Java 后端调 Node-RED Admin API 时，请求头带 Authorization: Bearer {此密钥}
+// 通过环境变量配置，docker-compose.yml 中设置
+const SERVICE_TOKEN = process.env.NZIOT_SERVICE_TOKEN || "";
+
 // ---- token 校验结果短期缓存（避免每个请求都调一次后端） ----
 const tokenCache = new Map(); // token -> { result, expireAt }
 const CACHE_TTL = 60 * 1000;  // 缓存 60 秒
 
 async function verifyPlatformToken(token) {
+    // 0. 内部服务 token 直接放行（后端 → Node-RED 的服务间调用）
+    if (SERVICE_TOKEN && token === SERVICE_TOKEN) {
+        return { username: "platform-backend", permissions: "*" };
+    }
+
     // 1. 查缓存
     const cached = tokenCache.get(token);
     if (cached && cached.expireAt > Date.now()) {

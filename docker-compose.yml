@@ -13,6 +13,9 @@ services:
       # 平台后端地址（Node-RED 用它校验 accessToken）
       # 测试环境直连后端；生产环境改成 Nginx 或内网地址
       - NZIOT_PLATFORM_API=http://192.168.3.96:19092
+      # 后端服务间调用 Node-RED Admin API 的密钥
+      # Java 后端调 Node-RED 时请求头带 Authorization: Bearer {此值}
+      - NZIOT_SERVICE_TOKEN=nziot-service-key-9999
       # 凭据加密密钥。第一次启动后不能改，否则已保存的凭据解不回来。
       - NODE_RED_CREDENTIAL_SECRET=nziot-prod-secret
 
