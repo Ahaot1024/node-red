@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   node-red:
@@ -6,9 +6,9 @@ services:
     container_name: nziot-node-red
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1880:1880"      # 只绑本机，由 Nginx 反代对外
+      - '1880:1880' # 宿主机 1880
     volumes:
-      - node-red-data:/app/nziot/data   # 流程文件持久化
+      - node-red-data:/app/nziot/data # 流程文件持久化
     environment:
       # 平台后端地址（Node-RED 用它校验 accessToken）
       # 测试环境直连后端；生产环境改成 Nginx 或内网地址
