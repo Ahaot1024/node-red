@@ -110,10 +110,25 @@ module.exports = {
         projects: { enabled: false },
         palette: { editable: false },
         menu: {
+            // 流程管理由平台控制，禁止在 Node-RED 内操作
             "menu-item-workspace-add": false,
             "menu-item-workspace-delete": false,
+            "menu-item-workspace-edit": false,
+            // 子流程管理也由平台控制
+            "menu-item-subflow": false,
+            "menu-item-subflow-create": false,
+            "menu-item-subflow-convert": false,
+            // 导入导出
             "menu-item-import-library": false,
-            "menu-item-export-library": false
+            "menu-item-export-library": false,
+            // 搜索流程（会暴露其他流程信息）
+            "menu-item-search": false,
+            // 配置节点列表（会暴露全局配置）
+            "menu-item-config-nodes": false,
+            // 流程子菜单整个隐藏
+            "menu-item-workspace": false,
+            // 操作列表（可触发添加流程等操作）
+            "menu-item-action-list": false
         }
     },
 
